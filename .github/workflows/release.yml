@@ -35,15 +35,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Preparar la firma
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/sincro.keystore"
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Falta el secreto KEYSTORE_BASE64: no se publica nada para no firmar con otra clave."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/sincro.keystore"
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Pruebas y APK
         run: ./gradlew --no-daemon testReleaseUnitTest assembleRelease
         env:
           KEYSTORE_FILE: ${{ runner.temp }}/sincro.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Publicar
         if: steps.ver.outputs.exists == 'false'
