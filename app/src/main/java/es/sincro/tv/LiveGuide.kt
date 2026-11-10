@@ -17,6 +17,9 @@ object LiveGuide {
     private const val BASE = "https://sport-tv-guide.live"
     private const val SPAIN = "16"
 
+    /** Solo para pruebas: recibe mensajes de lo que pasa al descargar. */
+    @Volatile var debug: ((String) -> Unit)? = null
+
     /** Países que ofrece la web (código, nombre). */
     val COUNTRIES = listOf(
         "16" to "España", "2" to "Reino Unido", "19" to "Portugal", "17" to "Italia", "4" to "Alemania", "18" to "Francia",
@@ -44,7 +47,9 @@ object LiveGuide {
 
     private class Jar : CookieJar {
         val cookies = LinkedHashMap<String, Cookie>()
-        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) { for (c in cookies) this.cookies[c.name] = c }
+        /** Países, hora de Madrid y formato 24 h los fija la app: la web no puede cambiarlos (si no, vuelve a su hora de California). */
+        val pinned = HashSet<String>()
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) { for (c in cookies) if (c.name !in pinned) this.cookies[c.name] = c }
         override fun loadForRequest(url: HttpUrl) = cookies.values.toList()
         fun value(name: String) = cookies[name]?.value?.let { java.net.URLDecoder.decode(it, "UTF-8") }
     }
@@ -88,6 +93,7 @@ object LiveGuide {
         jar.cookies["mycountries"] = ck("mycountries", java.net.URLEncoder.encode(countries.joinToString(","), "UTF-8"))
         jar.cookies["user_time_zone"] = ck("user_time_zone", "Europe%2FMadrid")
         jar.cookies["time_format_12"] = ck("time_format_12", "0")
+        jar.pinned += listOf("mycountries", "user_time_zone", "time_format_12")
         val client = Http.client.newBuilder().cookieJar(jar).build()
         fun get(path: String): String = client.newCall(
             Request.Builder().url(BASE + path).header("User-Agent", Http.WEB_UA).build()
@@ -119,7 +125,8 @@ object LiveGuide {
         while (!done && p <= 30) {
             val batch = (p until p + 6).map { n ->
                 pool.submit<org.json.JSONObject?> {
-                    try { org.json.JSONObject(post("/ajaxdata/nextlistpage", "l" to "0", "p" to n.toString(), "c" to "-1", "t" to "99", "d" to "", "x" to "0")) } catch (e: Exception) { null }
+                    val raw = try { post("/ajaxdata/nextlistpage", "l" to "0", "p" to n.toString(), "c" to "-1", "t" to "99", "d" to "", "x" to "0") } catch (e: Exception) { debug?.invoke("p$n error ${e.javaClass.simpleName}: ${e.message}"); null }
+                    try { org.json.JSONObject(raw ?: "") } catch (e: Exception) { debug?.invoke("p$n no-json (${raw?.length}): ${raw?.take(150)}"); null }
                 }
             }
             for (f in batch) {
@@ -135,7 +142,9 @@ object LiveGuide {
             val text = Names.normalize(pr.title + " " + pr.competition)
             events.none { e -> e.time == pr.time && Names.normalize(e.home).let { it.isNotBlank() && text.contains(it) } }
         }
-        return dedupe(events + extra)
+        val d = dedupe(events + extra)
+        debug?.invoke("día $date: ${events.size} eventos + ${extra.size} de parrilla -> ${d.size}")
+        return d
     }
 
     /** Quita repetidos: misma hora y mismos equipos (se queda el de nombre más corto, que suele ser el limpio). */
@@ -161,8 +170,9 @@ object LiveGuide {
         for (a in doc.select(".article")) {
             val time = to24h(a.selectFirst("b")?.text().orEmpty()) ?: continue
             val sport = a.selectFirst("img[data-src~=/images/t\\d+\\.png], img[src~=/images/t\\d+\\.png]")?.attr("title").orEmpty()
+            // Las líneas "Equipo - Equipo" y "Competición" (solo los div finales, no los que los envuelven)
             val lines = a.select("div.col-inline div.text-nowrap").map { it.text().trim() }
-                .ifEmpty { a.select("div.text-nowrap").map { it.text().trim() } }
+                .ifEmpty { a.select("div.text-nowrap").filter { it.select("div.text-nowrap").size == 1 }.map { it.text().trim() }.distinct() }
             val event = lines.getOrNull(0).orEmpty()
             val league = lines.getOrNull(1).orEmpty()
             if (event.isBlank()) continue

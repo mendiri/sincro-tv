@@ -10,8 +10,8 @@ android {
         applicationId = "es.sincro.tv"
         minSdk = 22
         targetSdk = 34
-        versionCode = 18
-        versionName = "1.17"
+        versionCode = 19
+        versionName = "1.18"
     }
     // Firma: en GitHub Actions viene de los secretos del repositorio; en local, de app/sincro.keystore (no se sube)
     signingConfigs {
