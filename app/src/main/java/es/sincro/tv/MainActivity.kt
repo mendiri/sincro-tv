@@ -39,6 +39,21 @@ class MainActivity : Activity() {
     private var vpnError: String? = null
     private var loading = false
     private var guideNote: String? = null
+    private lateinit var filterBtn: android.widget.Button
+    /** La última guía descargada (sin filtrar), para cambiar de vista sin volver a descargarla. */
+    private var lastAll: List<Match> = emptyList()
+    private var lastMatches: Result<List<Match>>? = null
+    private var lastPlaylist: Result<Any>? = null
+
+    private fun filterLabel() = if (app.prefs.onlyTeams) "★ Lo que sigo" else "☰ Todo"
+
+    /** Botón de la cabecera: solo lo que sigues ↔ todos los partidos. */
+    private fun toggleFilter() {
+        app.prefs.onlyTeams = !app.prefs.onlyTeams
+        filterBtn.text = filterLabel()
+        showMatches(lastAll)
+        lastMatches?.let { status.text = statusLine(it, lastPlaylist) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +61,8 @@ class MainActivity : Activity() {
 
         val header = hbox()
         header.addView(text(30f, bold = true).apply { text = "Sincro TV ${packageManager.getPackageInfo(packageName, 0).versionName}" }, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        filterBtn = button(filterLabel()) { toggleFilter() }
+        header.addView(filterBtn.margins(r = dp(10)))
         header.addView(button("Ver un canal") { openPicker(null, null, null) }.margins(r = dp(10)))
         header.addView(button("Actualizar") { loadAll(force = true) }.margins(r = dp(10)))
         updateBtn = button("⬆ Actualizar") { pendingUpdate?.let { askUpdate(it) } }.apply { visibility = View.GONE }
@@ -143,8 +160,10 @@ class MainActivity : Activity() {
                     showMatches(ms)
                     withContext(Dispatchers.IO) { GuideCache.save(filesDir, ms) }
                 }
+                lastMatches = matches
                 status.text = statusLine(matches, null) + "   ·   Cargando tus canales…"
                 val playlist = playlistJob.await()
+                lastPlaylist = playlist
                 status.text = statusLine(matches, playlist)
             } finally {
                 loading = false
@@ -177,6 +196,8 @@ class MainActivity : Activity() {
 
     /** Aplica tus filtros (deportes, ligas y equipos que sigues) y enseña la lista. */
     private fun showMatches(all: List<Match>) {
+        lastAll = all
+        if (::filterBtn.isInitialized) filterBtn.text = filterLabel()
         val p = app.prefs
         val teams = Follow.parse(p.team)
         val leagues = Follow.parse(p.leagues)
@@ -188,11 +209,12 @@ class MainActivity : Activity() {
         // Tus equipos, primero
         val mine = ms.filter { Follow.followsTeam(teams, it) }
         val sorted = mine + (ms - mine.toSet())
-        val hadFocus = list.focusedChild != null
+        val hadFocus = list.focusedChild != null || currentFocus === filterBtn
         adapter.submit(sorted, mine.toSet())
+        list.scrollToPosition(0)
         if (sorted.isNotEmpty() && !hadFocus) list.post { list.getChildAt(0)?.requestFocus() }
         help.visibility = if (sorted.isEmpty()) View.VISIBLE else View.GONE
-        if (sorted.isEmpty()) help.text = if (p.onlyTeams) "Hoy y mañana no hay nada de lo que sigues. Puedes ver todo desactivando «Solo lo que sigo» en los ajustes del móvil, o pulsar «Ver un canal»."
+        if (sorted.isEmpty()) help.text = if (p.onlyTeams) "Hoy y mañana no hay nada de lo que sigues. Pulsa «★ Lo que sigo» arriba para ver todos los partidos, o «Ver un canal»."
             else "No hay partidos para hoy ni mañana. Pulsa «Ver un canal» para elegir uno de tu lista."
     }
 
