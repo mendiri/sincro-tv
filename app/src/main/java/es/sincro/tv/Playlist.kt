@@ -10,7 +10,8 @@ import java.text.Normalizer
 data class Channel(val name: String, val group: String, val url: String)
 
 /** Tu lista de canales (la misma M3U que usabas en TiviMate). */
-class Playlist(private val dir: File) {
+/** [version]: versión de la app; si cambia, la lista guardada se vuelve a procesar (por si cambian las reglas). */
+class Playlist(private val dir: File, private val version: Int = 0) {
     @Volatile var channels: List<Channel> = emptyList()
         private set
     @Volatile private var idx: ChannelIndex? = null
@@ -39,9 +40,71 @@ class Playlist(private val dir: File) {
             }
         }
         if (downloaded || channels.isEmpty()) {
-            channels = file.bufferedReader().use { parse(it) }
-            idx = ChannelIndex(channels)
+            // Lista sin cambios desde la última vez: se carga ya procesada (mucho más rápido)
+            val cached = if (!downloaded) loadCache() else null
+            if (cached != null) {
+                channels = cached.channels
+                idx = cached
+            } else {
+                val list = file.bufferedReader().use { parse(it) }
+                val ix = ChannelIndex(list)
+                channels = list
+                idx = ix
+                saveCache(ix)
+            }
         }
+    }
+
+    // ---------- Lista ya procesada, guardada en disco ----------
+
+    private val cacheFile get() = File(dir, "playlist.cache")
+
+    /** Identifica la lista y la forma de procesarla: si algo cambia, lo guardado no vale. */
+    private fun stamp() = "${file.length()}|${file.lastModified()}|$version|$CACHE_FORMAT"
+
+    private fun saveCache(ix: ChannelIndex) {
+        val tmp = File(dir, "playlist.cache.tmp")
+        try {
+            val pre = ix.precomputed()
+            java.io.DataOutputStream(java.io.BufferedOutputStream(tmp.outputStream(), 1 shl 20)).use { o ->
+                o.writeUTF(stamp())
+                o.writeInt(ix.channels.size)
+                for (i in ix.channels.indices) {
+                    val c = ix.channels[i]
+                    o.writeUTF(c.name); o.writeUTF(c.group); o.writeUTF(c.url)
+                    o.writeUTF(pre.toks[i].joinToString(" "))
+                    val co = pre.country[i]
+                    o.writeBoolean(co != null)
+                    if (co != null) o.writeUTF(co.joinToString(","))
+                    o.writeUTF(pre.norm[i])
+                }
+            }
+            if (!tmp.renameTo(cacheFile)) tmp.delete()
+        } catch (e: Exception) {
+            tmp.delete() // sin guardar no pasa nada: la próxima vez se vuelve a procesar
+        }
+    }
+
+    private fun loadCache(): ChannelIndex? = try {
+        if (!cacheFile.exists() || !file.exists()) null
+        else java.io.DataInputStream(java.io.BufferedInputStream(cacheFile.inputStream(), 1 shl 20)).use { inp ->
+            if (inp.readUTF() != stamp()) return@use null
+            val n = inp.readInt()
+            val list = ArrayList<Channel>(n)
+            val toks = arrayOfNulls<Set<String>>(n)
+            val country = arrayOfNulls<Set<String>>(n)
+            val norm = arrayOfNulls<String>(n)
+            for (i in 0 until n) {
+                list += Channel(inp.readUTF(), inp.readUTF(), inp.readUTF())
+                toks[i] = inp.readUTF().split(' ').filter { it.isNotEmpty() }.toHashSet()
+                country[i] = if (inp.readBoolean()) inp.readUTF().split(',').filter { it.isNotEmpty() }.toHashSet() else null
+                norm[i] = inp.readUTF()
+            }
+            @Suppress("UNCHECKED_CAST")
+            ChannelIndex(list, ChannelIndex.Precomputed(toks as Array<Set<String>>, country, norm as Array<String>))
+        }
+    } catch (e: Exception) {
+        null // dañado o de otra versión: se vuelve a procesar
     }
 
     private val uaFile get() = File(dir, "playlist.ua")
@@ -117,6 +180,8 @@ class Playlist(private val dir: File) {
     }
 
     companion object {
+        /** Súbelo si cambia el formato del fichero guardado. */
+        private const val CACHE_FORMAT = 1
         private val GROUP = Regex("group-title=\"([^\"]*)\"")
         private val TVG_NAME = Regex("tvg-name=\"([^\"]*)\"")
 
@@ -254,15 +319,20 @@ object Names {
 }
 
 /** Índice de tu lista para encontrar canales al instante entre decenas de miles. */
-class ChannelIndex(val channels: List<Channel>) {
-    private val toks: Array<Set<String>> = Array(channels.size) { Names.tokens(channels[it].name) }
+class ChannelIndex(val channels: List<Channel>, pre: Precomputed? = null) {
+    /** Lo costoso de calcular de cada canal, para guardarlo y no repetirlo al abrir la app. */
+    class Precomputed(val toks: Array<Set<String>>, val country: Array<Set<String>?>, val norm: Array<String>)
+
+    private val toks: Array<Set<String>> = pre?.toks ?: Array(channels.size) { Names.tokens(channels[it].name) }
     /** País(es) de cada canal: null = no se sabe; vacío = temático o país que Live Guide no tiene. */
-    private val country: Array<Set<String>?> = Array(channels.size) { Countries.ofChannelSet(channels[it].name, channels[it].group) }
+    private val country: Array<Set<String>?> = pre?.country ?: Array(channels.size) { Countries.ofChannelSet(channels[it].name, channels[it].group) }
     private val inverted = HashMap<String, MutableList<Int>>().also { m ->
         toks.forEachIndexed { i, ts -> ts.forEach { t -> m.getOrPut(t) { ArrayList() }.add(i) } }
     }
 
-    private val norm: Array<String> by lazy { Array(channels.size) { Names.normalize(channels[it].name) } }
+    private val norm: Array<String> by lazy { pre?.norm ?: Array(channels.size) { Names.normalize(channels[it].name) } }
+
+    fun precomputed() = Precomputed(toks, country, norm)
 
     /** Búsqueda por texto: todos los trozos escritos deben aparecer en el nombre. */
     fun filter(query: String, limit: Int = 500): List<Channel> {

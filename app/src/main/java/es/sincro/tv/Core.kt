@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 class App : Application() {
     lateinit var prefs: Prefs
     lateinit var vpn: VpnController
-    val playlist by lazy { Playlist(filesDir) }
+    val playlist by lazy { Playlist(filesDir, Updater.installedCode(this)) }
     val radio by lazy { RadioPlayer(this) }
 
     /** Arranca la radio de fondo (en silencio) si está activada. */
