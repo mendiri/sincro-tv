@@ -1,0 +1,11 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+*.keystore
+*.jks
+*.apk
+*.log
+asignacion_simulada.csv
+app/src/test/resources/categorias_iptv.csv

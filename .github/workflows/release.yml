@@ -1,0 +1,57 @@
+name: Compilar y publicar
+
+# Cada vez que se sube código a main: se compila y, si la versión (versionName en app/build.gradle.kts)
+# todavía no está publicada, se crea una publicación con el APK. La app de la tele la detecta y se actualiza.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Leer la versión
+        id: ver
+        run: |
+          NAME=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          CODE=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts)
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          if gh release view "v$NAME" > /dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Preparar la firma
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/sincro.keystore"
+
+      - name: Pruebas y APK
+        run: ./gradlew --no-daemon testReleaseUnitTest assembleRelease
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/sincro.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Publicar
+        if: steps.ver.outputs.exists == 'false'
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk SincroTV.apk
+          NOTES=$(git log -1 --pretty=%s)
+          gh release create "v${{ steps.ver.outputs.name }}" SincroTV.apk \
+            --title "Sincro TV ${{ steps.ver.outputs.name }}" \
+            --notes "$NOTES"$'\n\n'"versionCode: ${{ steps.ver.outputs.code }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
