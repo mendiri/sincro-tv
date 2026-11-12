@@ -67,7 +67,9 @@ object LiveGuide {
 
     fun fetch(countries: List<String>): List<Match> {
         val want = countries.ifEmpty { listOf(SPAIN) }
-        val now = Calendar.getInstance(MADRID)
+        // La fecha de "hoy" tiene que ser la real, no la del reloj del aparato
+        if (!Clock.known) runCatching { Http.client.newCall(Request.Builder().url(BASE).head().header("User-Agent", Http.WEB_UA).build()).execute().close() }
+        val now = Clock.madrid()
         val iso = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = MADRID }
         val es = SimpleDateFormat("dd/MM/yyyy", Locale.US).apply { timeZone = MADRID }
         val tomorrow = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }

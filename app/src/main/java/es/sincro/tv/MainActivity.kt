@@ -138,7 +138,7 @@ class MainActivity : Activity() {
         loading = true
         // La última guía guardada sale al momento; la nueva llega en unos segundos
         if (adapter.itemCount == 0) GuideCache.load(filesDir)?.let { cached ->
-            showMatches(Schedule.upcoming(cached, java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Europe/Madrid"))))
+            showMatches(Schedule.upcoming(cached, Clock.madrid()))
         }
         scope.launch {
             try {
@@ -192,6 +192,7 @@ class MainActivity : Activity() {
         parts += (if (p.guide == "futbolenlatv") "Guía: futbolenlatv.es" else "Guía: Live Guide") +
             (if (p.onlyTeams) " (solo lo que sigues)" else "")
         guideNote?.let { parts += it }
+        if (Clock.wrong) parts += "El reloj de este aparato ${Clock.describe()}: uso la hora de internet"
         matches.exceptionOrNull()?.let { parts += "Guía: " + explainError(it) }
         parts += "Ajustes desde el móvil: ${settingsUrl()}"
         return parts.joinToString("   ·   ")
@@ -446,7 +447,7 @@ class MainActivity : Activity() {
 
     private val dayFmt = java.text.SimpleDateFormat("dd/MM/yyyy", Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("Europe/Madrid") }
     private fun dayLabel(date: String): String {
-        val now = java.util.Calendar.getInstance(dayFmt.timeZone)
+        val now = Clock.madrid()
         if (dayFmt.format(now.time) == date) return "Hoy"
         now.add(java.util.Calendar.DAY_OF_YEAR, 1)
         return if (dayFmt.format(now.time) == date) "Mañana" else date.take(5)

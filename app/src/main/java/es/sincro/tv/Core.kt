@@ -48,6 +48,8 @@ object Http {
     val PLAYER_UAS = listOf(UA, "okhttp/4.12.0", "TiviMate/5.1.6 (Android 11)", "IPTVSmartersPlayer")
     const val WEB_UA = "Mozilla/5.0 (Linux; Android 11; AFTKA) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
     val client: OkHttpClient = OkHttpClient.Builder()
+        // Cada respuesta trae la hora del servidor: sirve para corregir el reloj si el del aparato va mal
+        .addNetworkInterceptor { chain -> chain.proceed(chain.request()).also { Clock.fromHttpDate(it.header("Date")) } }
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
@@ -229,3 +231,43 @@ fun lanAddress(): String? = try {
 } catch (e: Exception) { null }
 
 fun fmtSec(v: Float): String = String.format(java.util.Locale("es", "ES"), "%.1f", v)
+
+/**
+ * Hora real. Si el reloj del aparato va mal (proyectores y cajas sin hora automática),
+ * se corrige con la hora que mandan los servidores en cada respuesta.
+ */
+object Clock {
+    @Volatile var offsetMs = 0L
+        private set
+    @Volatile var known = false
+        private set
+
+    fun now(): Long = System.currentTimeMillis() + offsetMs
+
+    /** Ahora mismo en hora de España. */
+    fun madrid(): java.util.Calendar =
+        java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Europe/Madrid")).apply { timeInMillis = now() }
+
+    /** Cabecera HTTP "Date" (p. ej. "Thu, 12 Nov 2026 19:30:00 GMT"). */
+    fun fromHttpDate(h: String?) {
+        if (h.isNullOrBlank()) return
+        val server = try {
+            java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", java.util.Locale.US)
+                .apply { timeZone = java.util.TimeZone.getTimeZone("GMT") }.parse(h)?.time
+        } catch (e: Exception) { null } ?: return
+        val diff = server - System.currentTimeMillis()
+        // Diferencias pequeñas (latencia, segundos) no cuentan
+        offsetMs = if (kotlin.math.abs(diff) > 120_000) diff else 0
+        known = true
+    }
+
+    val wrong get() = kotlin.math.abs(offsetMs) > 120_000
+
+    /** "va 1 día y 2 h por detrás" */
+    fun describe(): String {
+        val m = (kotlin.math.abs(offsetMs) + 30_000) / 60_000 // redondeado al minuto
+        val d = m / 1440; val h = (m % 1440) / 60; val mm = m % 60
+        val parts = buildList { if (d > 0) add("$d día" + if (d > 1) "s" else ""); if (h > 0) add("$h h"); if (d == 0L && mm > 0) add("$mm min") }
+        return "va " + parts.joinToString(" y ") + if (offsetMs > 0) " por detrás" else " por delante"
+    }
+}

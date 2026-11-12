@@ -50,7 +50,7 @@ object Schedule {
         }
         val all = parse(html)
         if (all.isEmpty()) throw IOException("No he podido leer la guía de partidos (puede que la web haya cambiado)")
-        return upcoming(all, Calendar.getInstance(MADRID))
+        return upcoming(all, Clock.madrid())
     }
 
     fun parse(html: String): List<Match> {
