@@ -10,8 +10,8 @@ android {
         applicationId = "es.sincro.tv"
         minSdk = 22
         targetSdk = 34
-        versionCode = 25
-        versionName = "1.24"
+        versionCode = 26
+        versionName = "1.25"
     }
     // Firma: en GitHub Actions viene de los secretos del repositorio; en local, de app/sincro.keystore (no se sube)
     signingConfigs {
@@ -31,6 +31,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // La librería de WireGuard usa Optional, streams y java.time: hace falta en Android < 8
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions { jvmTarget = "17" }
     testOptions { unitTests.all { it.environment("LIVE", System.getenv("LIVE") ?: "0"); System.getenv("COUNTRIES")?.let { c -> it.environment("COUNTRIES", c) }; listOf("CANALES_CSV", "ST_CACHE", "REPORT").forEach { k -> System.getenv(k)?.let { v -> it.environment(k, v) } }; it.maxHeapSize = "3g"; it.testLogging { showStandardStreams = true } } }
@@ -51,6 +53,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jsoup:jsoup:1.14.3") // 1.15+ usa ThreadLocal.withInitial: falla en Android < 8
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")
 }

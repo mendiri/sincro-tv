@@ -6,7 +6,15 @@ import java.net.URLDecoder
 /** Página web en el Fire TV para configurar la app desde el móvil (http://IP-DEL-FIRE-TV:8080). */
 class SetupServer(port: Int = PORT) : NanoHTTPD(port) {
 
-    override fun serve(session: IHTTPSession): Response {
+    /** Si algo falla al servir la página, se enseña el error en el móvil en vez de cerrar la app. */
+    override fun serve(session: IHTTPSession): Response = try {
+        serveInner(session)
+    } catch (t: Throwable) {
+        newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain; charset=utf-8",
+            "Error en la tele al preparar la página: ${t.javaClass.simpleName}: ${t.message ?: ""}\n\nMándale una captura de esto a quien te ayuda con Sincro TV.")
+    }
+
+    private fun serveInner(session: IHTTPSession): Response {
         val uri = session.uri.trimEnd('/')
         if (uri == "/canales") return html(ChannelsPage.HTML)
         if (uri == "/exportar") {
@@ -100,7 +108,7 @@ class SetupServer(port: Int = PORT) : NanoHTTPD(port) {
 
     private fun checkWg(text: String): String? = try {
         VpnController.buildConfig(text); null
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         "Guardado, pero ojo: ${VpnController.explain(e)}."
     }
 

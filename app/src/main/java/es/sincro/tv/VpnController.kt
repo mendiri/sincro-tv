@@ -83,7 +83,7 @@ class VpnController(private val ctx: Context) {
                     else -> try {
                         com.wireguard.crypto.Key.fromBase64(v)
                         "$name: correcta."
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         val bad = v.filterNot { it.isLetterOrDigit() || it == '+' || it == '/' || it == '=' }
                         "$name: NO válida (${v.length} caracteres; debe tener 44 y acabar en «=»" +
                             (if (bad.isNotEmpty()) "; lleva caracteres raros: ${bad.map { "U+%04X".format(it.code) }.distinct().joinToString()}" else "") +
@@ -92,7 +92,7 @@ class VpnController(private val ctx: Context) {
                 }
             }
             if (out.all { it.endsWith("correcta.") }) {
-                try { buildConfig(text); out += "La configuración completa se lee bien." } catch (e: Exception) { out += "Otro problema: ${explain(e)}" }
+                try { buildConfig(text); out += "La configuración completa se lee bien." } catch (e: Throwable) { out += "Otro problema: ${explain(e)}" }
             }
             return out
         }
