@@ -10,8 +10,8 @@ android {
         applicationId = "es.sincro.tv"
         minSdk = 22
         targetSdk = 34
-        versionCode = 20
-        versionName = "1.19"
+        versionCode = 21
+        versionName = "1.20"
     }
     // Firma: en GitHub Actions viene de los secretos del repositorio; en local, de app/sincro.keystore (no se sube)
     signingConfigs {
@@ -42,6 +42,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-exoplayer-hls:$media3")
     implementation("androidx.media3:media3-ui:$media3")
+    implementation("androidx.media3:media3-datasource-okhttp:$media3")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.core:core:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

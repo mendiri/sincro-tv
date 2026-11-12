@@ -140,11 +140,9 @@ class MainActivity : Activity() {
         }
         scope.launch {
             try {
-                if (app.vpn.isConfigured()) {
-                    status.text = "Conectando la VPN…"
-                    withContext(Dispatchers.IO) {
-                        try { app.vpn.up(); vpnError = null } catch (e: Exception) { vpnError = VpnController.explain(e) }
-                    }
+                if (p.useProxy || app.vpn.isConfigured()) {
+                    status.text = if (p.useProxy) "Conectando con la Raspberry…" else "Conectando la VPN…"
+                    vpnError = withContext(Dispatchers.IO) { Net.prepare(app) }
                 }
                 app.startRadio()
                 status.text = "Actualizando la guía…"
@@ -175,6 +173,9 @@ class MainActivity : Activity() {
         val p = app.prefs
         val parts = mutableListOf<String>()
         parts += when {
+            Net.viaRaspberry -> "Red: Raspberry (${p.proxy})"
+            Net.raspberryProblem != null && app.vpn.state == Tunnel.State.UP -> "${Net.raspberryProblem}: uso la VPN del Fire TV"
+            Net.raspberryProblem != null -> "${Net.raspberryProblem}"
             !app.vpn.isConfigured() -> "VPN sin configurar"
             vpnError != null -> "VPN: error ($vpnError)"
             app.vpn.state == Tunnel.State.UP -> "VPN conectada"

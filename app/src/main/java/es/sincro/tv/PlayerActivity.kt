@@ -19,7 +19,6 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -102,9 +101,10 @@ class PlayerActivity : Activity() {
 
         showOverlay("$title\n$chName" + if (autoPicked) "\n(elegido automáticamente; ←/→ para ver los otros ${chans.size - 1} canales del partido)" else "", long = true)
         scope.launch {
-            if (app.vpn.isConfigured()) {
-                center.text = "Conectando la VPN…"
-                withContext(Dispatchers.IO) { runCatching { app.vpn.up() } }
+            // Por la Raspberry (si está activada y responde) o por la VPN del Fire TV
+            if (!Net.viaRaspberry && (app.prefs.useProxy || app.vpn.isConfigured())) {
+                center.text = if (app.prefs.useProxy) "Conectando con la Raspberry…" else "Conectando la VPN…"
+                withContext(Dispatchers.IO) { runCatching { Net.prepare(app) } }
             }
             if (released) return@launch
             startVideo()
@@ -136,11 +136,9 @@ class PlayerActivity : Activity() {
     private val loadTimeout = Runnable { fail("el canal no responde") }
 
     private fun startVideo() {
-        val http = DefaultHttpDataSource.Factory()
+        // Los canales salen por la Raspberry o por la VPN del Fire TV (Net decide)
+        val http = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(Net.iptvClient())
             .setUserAgent(app.playlist.userAgent)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(30_000)
         val player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(http))
             .build()

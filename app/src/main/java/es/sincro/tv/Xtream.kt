@@ -17,7 +17,7 @@ class Xtream(val server: String, val user: String, val pass: String, val ext: St
 
     private fun get(url: String, ua: String): String {
         val req = Request.Builder().url(url).header("User-Agent", ua).build()
-        return Http.client.newCall(req).execute().use { r ->
+        return Net.iptvClient().newCall(req).execute().use { r ->
             if (!r.isSuccessful) throw Playlist.HttpError(r.code)
             r.body!!.string()
         }

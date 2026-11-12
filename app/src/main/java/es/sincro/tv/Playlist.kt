@@ -156,7 +156,7 @@ class Playlist(private val dir: File, private val version: Int = 0) {
 
     private fun fetchM3u(url: String, ua: String) {
         val req = Request.Builder().url(url).header("User-Agent", ua).build()
-        Http.client.newCall(req).execute().use { r ->
+        Net.iptvClient().newCall(req).execute().use { r ->
             if (!r.isSuccessful) throw HttpError(r.code)
             val tmp = File(dir, "playlist.tmp")
             tmp.outputStream().use { out -> r.body!!.byteStream().copyTo(out) }

@@ -33,6 +33,10 @@ class SetupServer(port: Int = PORT) : NanoHTTPD(port) {
                     "&password=${java.net.URLEncoder.encode(pwd, "UTF-8")}&type=m3u_plus&output=ts"
             }
             f["wg"]?.trim()?.let { if (it.isNotEmpty()) p.wg = it }
+            if (f["proxySent"] == "1") {
+                p.proxy = f["proxy"]?.trim().orEmpty()
+                p.useProxy = f["useProxy"] == "1" && p.proxy.isNotBlank()
+            }
             f["radioName"]?.trim()?.let { if (it.isNotEmpty()) p.radioName = it }
             f["radio"]?.trim()?.let { if (it.isNotEmpty()) p.radioUrl = it }
             f["team"]?.let { p.team = it.trim() }
@@ -42,6 +46,7 @@ class SetupServer(port: Int = PORT) : NanoHTTPD(port) {
             val err = f["wg"]?.trim()?.takeIf { it.isNotEmpty() }?.let { checkWg(it) }
             msg = (err ?: "Guardado. Ya puedes volver a la tele.") +
                 (if (!f["wg"].isNullOrBlank()) "\n\nVPN: " + VpnController.keyReport(p.wg).joinToString(" ") else "") +
+                (if (p.proxy.isNotBlank()) "\n\nRaspberry: " + Net.testProxy(p.proxy) + (if (p.useProxy) "" else " (desactivada: la app usa su propia VPN)") else "") +
                 "\n\nEmisora: " + testRadio(p.radioUrl)
             App.instance.notifyConfigChanged()
             return newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", msg)
@@ -137,6 +142,14 @@ button{font:inherit;font-weight:700;background:var(--accent);color:#06140c;borde
   <input name="xsrv" inputmode="url" placeholder="Servidor (ej. https://iptv.example.com)">
   <input name="xusr" placeholder="Usuario" autocapitalize="off" autocomplete="off">
   <input name="xpwd" placeholder="Contraseña" autocapitalize="off" autocomplete="off">
+</div>
+<div class="card">
+  <label style="color:var(--fg);font-weight:600">Raspberry (VPN de gluetun)</label>
+  <input type=hidden name=proxySent value=1>
+  <label class=chk><input type=checkbox name=useProxy value=1 style="width:auto"${if (p.useProxy) " checked" else ""}> Usar la Raspberry para la lista y los canales (el Fire TV no conecta su VPN)</label>
+  <label for="proxy">Dirección del proxy de gluetun</label>
+  <input id="proxy" name="proxy" inputmode="url" value="${esc(p.proxy)}" placeholder="192.168.0.12:8888">
+  <p class="hint">La guía, la radio y las actualizaciones van directas. Si la Raspberry no responde, la app usa su propia VPN (la de abajo). Al guardar, te digo por qué país sale.</p>
 </div>
 <div class="card">
   <div style="font-size:13px;color:var(--muted)">Estado de la configuración VPN guardada:<br>${VpnController.keyReport(p.wg).joinToString("<br>") { esc(it) }}</div>

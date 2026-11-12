@@ -91,6 +91,10 @@ class Prefs(ctx: Context) {
     var guide: String get() = str("guide", "liveguide"); set(v) = put("guide", v)
     var delay: Float get() = sp.getFloat("delay", 30f); set(v) = sp.edit().putFloat("delay", v).apply()
     var radioOn: Boolean get() = sp.getBoolean("radioOn", true); set(v) = sp.edit().putBoolean("radioOn", v).apply()
+    /** Proxy de la Raspberry (gluetun), "192.168.0.12:8888". */
+    var proxy: String get() = str("proxy"); set(v) = put("proxy", v)
+    /** Usar la Raspberry para lo de IPTV en vez de la VPN del Fire TV. */
+    var useProxy: Boolean get() = sp.getBoolean("useProxy", false); set(v) = sp.edit().putBoolean("useProxy", v).apply()
     var lastOfferedUpdate: Int get() = sp.getInt("lastOfferedUpdate", 0); set(v) = sp.edit().putInt("lastOfferedUpdate", v).apply()
     var autoAdjust: Boolean get() = sp.getBoolean("autoAdjust", true); set(v) = sp.edit().putBoolean("autoAdjust", v).apply()
 
