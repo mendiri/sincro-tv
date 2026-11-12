@@ -173,6 +173,51 @@ class Prefs(ctx: Context) {
     fun rememberIfEmpty(siteName: String, ch: Channel) { if (mappings(siteName).isEmpty()) setMappings(siteName, listOf(ch)) }
 
     fun clearMappings() = saveMaps(JSONObject())
+
+    // ---------- Copia de la configuración (exportar / importar) ----------
+
+    /**
+     * Toda la configuración en un JSON, para llevarla a otro dispositivo.
+     * Con [includeSecrets] incluye la lista IPTV (con usuario y contraseña) y la clave de la VPN.
+     */
+    fun exportJson(includeSecrets: Boolean, appVersion: String): JSONObject {
+        val c = JSONObject()
+        if (includeSecrets) c.put("m3u", m3u).put("wg", wg)
+        c.put("radio", radioUrl).put("radioName", radioName).put("delay", delay.toDouble())
+            .put("radioOn", radioOn).put("autoAdjust", autoAdjust)
+            .put("team", team).put("leagues", leagues).put("sports", sports).put("knownSports", knownSports)
+            .put("onlyTeams", onlyTeams).put("countries", countries).put("guide", guide)
+            .put("proxy", proxy).put("useProxy", useProxy)
+        return JSONObject().put("app", "sincro-tv").put("formato", 1).put("version", appVersion)
+            .put("conSecretos", includeSecrets).put("ajustes", c).put("asignaciones", maps())
+    }
+
+    /** Carga una copia exportada. Devuelve qué se ha importado, en palabras. */
+    fun importJson(o: JSONObject): List<String> {
+        require(o.optString("app") == "sincro-tv") { "este fichero no es una copia de Sincro TV" }
+        val c = o.optJSONObject("ajustes") ?: JSONObject()
+        val done = mutableListOf<String>()
+        fun has(k: String) = c.has(k) && !c.isNull(k)
+        if (has("m3u") && c.optString("m3u").isNotBlank()) { m3u = c.optString("m3u"); done += "lista de canales" }
+        if (has("wg") && c.optString("wg").isNotBlank()) { wg = c.optString("wg"); done += "VPN de Proton" }
+        if (has("radio")) { radioUrl = c.optString("radio"); radioName = c.optString("radioName", radioName); done += "emisora" }
+        if (has("delay")) { delay = c.optDouble("delay", delay.toDouble()).toFloat(); done += "retardo de la radio" }
+        if (has("radioOn")) radioOn = c.optBoolean("radioOn", radioOn)
+        if (has("autoAdjust")) autoAdjust = c.optBoolean("autoAdjust", autoAdjust)
+        if (has("team")) team = c.optString("team")
+        if (has("leagues")) leagues = c.optString("leagues")
+        if (has("team") || has("leagues")) done += "ligas y equipos"
+        if (has("sports")) sports = c.optString("sports")
+        if (has("knownSports")) knownSports = c.optString("knownSports")
+        if (has("onlyTeams")) onlyTeams = c.optBoolean("onlyTeams", onlyTeams)
+        if (has("countries")) { countries = c.optString("countries"); done += "países" }
+        if (has("guide")) guide = c.optString("guide")
+        if (has("proxy")) { proxy = c.optString("proxy"); useProxy = c.optBoolean("useProxy", false) && proxy.isNotBlank(); done += "Raspberry" }
+        o.optJSONObject("asignaciones")?.let { saveMaps(it); done += "${it.length()} asignaciones de canales" }
+        // Lo que sigues ya viene en la copia: que no lo pisen los valores por defecto
+        sp.edit().putBoolean("followDefaults1", true).apply()
+        return done
+    }
     fun mappingCount() = maps().length()
 }
 

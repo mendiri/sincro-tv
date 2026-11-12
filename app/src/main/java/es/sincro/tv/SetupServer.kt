@@ -9,6 +9,23 @@ class SetupServer(port: Int = PORT) : NanoHTTPD(port) {
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri.trimEnd('/')
         if (uri == "/canales") return html(ChannelsPage.HTML)
+        if (uri == "/exportar") {
+            val withSecrets = session.parms["secretos"] == "1"
+            val json = App.instance.prefs.exportJson(withSecrets, Updater.installedName(App.instance)).toString(2)
+            return newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", json).apply {
+                addHeader("Content-Disposition", "attachment; filename=\"sincro-tv${if (withSecrets) "" else "-sin-claves"}.json\"")
+            }
+        }
+        if (uri == "/importar" && session.method == Method.POST) {
+            val msg = try {
+                val done = App.instance.prefs.importJson(org.json.JSONObject(readBody(session)))
+                App.instance.notifyConfigChanged()
+                "Importado: " + done.joinToString(", ").ifBlank { "nada" } + ". La tele se actualiza sola."
+            } catch (e: Exception) {
+                "No se ha podido importar: ${e.message ?: "el fichero no es válido"}."
+            }
+            return newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", msg)
+        }
         if (uri.startsWith("/fonts/") && uri.endsWith(".ttf") && !uri.contains("..")) return try {
             val ins = App.instance.assets.open(uri.removePrefix("/"))
             newChunkedResponse(Response.Status.OK, "font/ttf", ins).apply { addHeader("Cache-Control", "max-age=604800") }
@@ -195,12 +212,35 @@ input:focus,textarea:focus,button:focus{outline:3px solid var(--focus);outline-o
   <label><input type="checkbox" name="clearMaps" value="1" style="width:auto"> Olvidar los ${p.mappingCount()} canales emparejados</label>
 </div>
 <button type="submit">Guardar</button>
+<div class="card" style="margin-top:14px">
+  <label style="color:var(--fg);font-weight:500">Copia de la configuración</label>
+  <p class="hint">Para llevar todo a otro dispositivo: ajustes, lo que sigues, la emisora y las asignaciones de canales.</p>
+  <label class=chk><input type=checkbox id=expSecrets style="width:auto"> Incluir la lista IPTV (usuario y contraseña) y la clave de la VPN</label>
+  <button type=button id=expBtn>Exportar configuración</button>
+  <p class="hint">Si incluyes las claves, guarda el fichero en un sitio privado y no lo compartas.</p>
+  <label for=impFile style="margin-top:8px">Importar una copia (fichero .json exportado desde otro dispositivo)</label>
+  <input type=file id=impFile accept=".json,application/json">
+  <button type=button id=impBtn>Importar configuración</button>
+  <p id=impMsg class="hint" style="white-space:pre-line"></p>
+</div>
 <p id="msg"></p>
 </form>
 <script>
 document.getElementById('wgfile').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
   document.getElementById('wg').value = await f.text();
+});
+document.getElementById('expBtn').addEventListener('click', () => {
+  location.href = '/exportar' + (document.getElementById('expSecrets').checked ? '?secretos=1' : '');
+});
+document.getElementById('impBtn').addEventListener('click', async () => {
+  const f = document.getElementById('impFile').files[0], m = document.getElementById('impMsg');
+  if (!f) { m.textContent = 'Elige primero el fichero .json.'; return; }
+  m.textContent = 'Importando…';
+  try {
+    const r = await fetch('/importar', {method:'POST', headers:{'Content-Type':'application/json'}, body: await f.text()});
+    m.textContent = await r.text();
+  } catch (e) { m.textContent = 'No se ha podido importar: ¿sigue encendida la app en la tele?'; }
 });
 document.getElementById('f').addEventListener('submit', async e => {
   e.preventDefault();
