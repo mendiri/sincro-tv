@@ -192,9 +192,17 @@ class MainActivity : Activity() {
         parts += (if (p.guide == "futbolenlatv") "Guía: futbolenlatv.es" else "Guía: Live Guide") +
             (if (p.onlyTeams) " (solo lo que sigues)" else "")
         guideNote?.let { parts += it }
-        matches.exceptionOrNull()?.let { parts += "Guía: ${it.message}" }
+        matches.exceptionOrNull()?.let { parts += "Guía: " + explainError(it) }
         parts += "Ajustes desde el móvil: ${settingsUrl()}"
         return parts.joinToString("   ·   ")
+    }
+
+    /** Error en palabras: los fallos internos de Android traen solo un nombre técnico como mensaje. */
+    private fun explainError(e: Throwable): String {
+        val msg = e.message.orEmpty()
+        return if (e is Error || msg.isBlank() || !msg.contains(' '))
+            "no se ha podido leer (fallo interno en este dispositivo: ${e.javaClass.simpleName}${if (msg.isNotBlank()) " $msg" else ""})"
+        else msg
     }
 
     /** Aplica tus filtros (deportes, ligas y equipos que sigues) y enseña la lista. */
