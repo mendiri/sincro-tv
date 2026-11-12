@@ -17,6 +17,9 @@ object LiveGuide {
     private const val BASE = "https://sport-tv-guide.live"
     private const val SPAIN = "16"
 
+    /** Marca en la clave de los partidos escritos "X at Y" / "X vs Y" (versión en inglés, peor que la ficha en español). */
+    private const val ENGLISH_MARK = "|en"
+
     /** Solo para pruebas: recibe mensajes de lo que pasa al descargar. */
     @Volatile var debug: ((String) -> Unit)? = null
 
@@ -114,10 +117,14 @@ object LiveGuide {
             first = get("/es")
         }
         val seen = HashSet<String>()
+        val englishFormat = HashSet<Match>()
         val events = ArrayList<Match>()   // partidos con su ficha
         val programs = ArrayList<Match>() // entradas de la parrilla de TV
         fun add(html: String) {
-            for ((k, m) in parseKeyed(html, date)) if (seen.add(k)) (if (k.startsWith("/")) events else programs) += m
+            for ((k, m) in parseKeyed(html, date)) if (seen.add(k)) {
+                if (k.startsWith("/")) events += m else programs += m
+                if (k.contains(ENGLISH_MARK)) englishFormat += m
+            }
         }
         add(first)
         var p = 1
@@ -138,24 +145,40 @@ object LiveGuide {
             p += 6
         }
         // La parrilla repite partidos que ya están: se quitan los que coinciden en hora y equipos
-        val extra = programs.filter { pr ->
-            val text = Names.normalize(pr.title + " " + pr.competition)
-            events.none { e -> e.time == pr.time && Names.normalize(e.home).let { it.isNotBlank() && text.contains(it) } }
-        }
-        val d = dedupe(events + extra)
-        debug?.invoke("día $date: ${events.size} eventos + ${extra.size} de parrilla -> ${d.size}")
+        // Fichas de partido "Local - Visitante" primero; luego las de "X at Y" / "X vs Y"; la parrilla de TV al final
+        val d = dedupeRanked(events.map { it to (if (it in englishFormat) 1 else 0) } + programs.map { it to 2 })
+        debug?.invoke("día $date: ${events.size} eventos + ${programs.size} de parrilla -> ${d.size}")
         return d
     }
 
     /** Quita repetidos: misma hora y mismos equipos (se queda el de nombre más corto, que suele ser el limpio). */
-    fun dedupe(list: List<Match>): List<Match> {
+    fun dedupe(list: List<Match>): List<Match> = dedupeRanked(list.map { it to 0 })
+
+    /** ¿Mismos canales? (casi todos en común): el mismo partido aunque el nombre esté en otro idioma. */
+    private fun sameChannels(a: Match, b: Match): Boolean {
+        val x = a.refs.toSet()
+        val y = b.refs.toSet()
+        val common = x.intersect(y).size
+        return common >= 2 && common >= 0.6 * minOf(x.size, y.size)
+    }
+
+    /** ¿Mismos equipos? (uno contiene los nombres del otro) */
+    private fun sameTeams(k: Match, text: String): Boolean {
+        val h = Names.normalize(k.home)
+        if (h.length < 3 || !text.contains(h)) return false
+        val a = Names.normalize(k.away)
+        return a.isBlank() || text.contains(a)
+    }
+
+    /**
+     * Quita repetidos: misma hora y (mismos canales o mismos equipos). [rank]: 0 = la mejor versión
+     * (ficha del partido en español, "Local - Visitante"); se queda la de menor rank y, a igualdad, la de nombre más corto.
+     */
+    fun dedupeRanked(list: List<Pair<Match, Int>>): List<Match> {
         val kept = ArrayList<Match>()
-        for (m in list.sortedBy { it.title.length + it.competition.length }) {
+        for ((m, _) in list.sortedWith(compareBy({ it.second }, { it.first.title.length + it.first.competition.length }))) {
             val text = Names.normalize(m.title + " " + m.competition)
-            val dup = kept.any { k ->
-                k.date == m.date && k.time == m.time && k.home.isNotBlank() &&
-                    text.contains(Names.normalize(k.home)) && (k.away.isBlank() || text.contains(Names.normalize(k.away)))
-            }
+            val dup = kept.any { k -> k.date == m.date && k.time == m.time && (sameChannels(k, m) || sameTeams(k, text)) }
             if (!dup) kept += m
         }
         return kept.sortedWith(compareBy({ it.date }, { it.time }))
@@ -182,8 +205,17 @@ object LiveGuide {
                 img.attr("title").replace("[]", "").trim() to (Regex("-(\\d+)\\.png").find(src)?.groupValues?.get(1) ?: "")
             }.filter { it.first.isNotBlank() }.distinctBy { refOf(it.first, it.second) }
             val channels = stations.map { it.first }
-            val parts = event.split(" - ", limit = 2)
-            val key = a.attr("href").ifBlank { a.attr("data-id") } + "|" + time + "|" + event
+            // "Local - Visitante"; en inglés también "Visitante at Local" y "Local vs Visitante"
+            val atMatch = Regex("^(.+?) at (.+)$").find(event)
+            val vsMatch = Regex("^(.+?) (?:vs\\.?|v) (.+)$", RegexOption.IGNORE_CASE).find(event)
+            val english = !event.contains(" - ") && (atMatch != null || vsMatch != null)
+            val parts = when {
+                event.contains(" - ") -> event.split(" - ", limit = 2)
+                atMatch != null -> listOf(atMatch.groupValues[2], atMatch.groupValues[1])
+                vsMatch != null -> listOf(vsMatch.groupValues[1], vsMatch.groupValues[2])
+                else -> listOf(event)
+            }
+            val key = a.attr("href").ifBlank { a.attr("data-id") } + "|" + time + "|" + event + (if (english) ENGLISH_MARK else "")
             out += key to Match(date, time, league, parts[0].trim(), parts.getOrNull(1)?.trim().orEmpty(), channels,
                 sport.ifBlank { "Fútbol" }.let { if (it.equals("Football", true)) "Fútbol" else it }, stations.map { it.second })
         }
