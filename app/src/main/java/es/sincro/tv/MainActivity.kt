@@ -12,6 +12,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wireguard.android.backend.Tunnel
+import es.sincro.tv.Ui.background
 import es.sincro.tv.Ui.button
 import es.sincro.tv.Ui.dp
 import es.sincro.tv.Ui.hbox
@@ -60,7 +61,7 @@ class MainActivity : Activity() {
         val root = vbox().apply { setPadding(dp(48), dp(24), dp(48), dp(12)) }
 
         val header = hbox()
-        header.addView(text(30f, bold = true).apply { text = "Sincro TV ${packageManager.getPackageInfo(packageName, 0).versionName}" }, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        header.addView(text(34f, light = true).apply { text = "Sincro TV  ${packageManager.getPackageInfo(packageName, 0).versionName}" }, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         filterBtn = button(filterLabel()) { toggleFilter() }
         header.addView(filterBtn.margins(r = dp(10)))
         header.addView(button("Ver un canal") { openPicker(null, null, null) }.margins(r = dp(10)))
@@ -83,6 +84,7 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(4), dp(4), dp(24))
         }
         root.addView(list, lp(h = 0, weight = 1f))
+        window.setBackgroundDrawable(background())
         setContentView(root)
 
         app.onConfigChanged = { loadAll(force = true) }
@@ -220,7 +222,7 @@ class MainActivity : Activity() {
     }
 
     private fun showSettingsHelp() {
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this, Ui.DIALOG)
             .setTitle("Ajustes")
             .setMessage(
                 "Abre esta dirección en el navegador del móvil (misma wifi):\n\n${settingsUrl()}\n\n" +
@@ -252,7 +254,7 @@ class MainActivity : Activity() {
                     askUpdate(rel)
                 }
             } else if (!silent) {
-                AlertDialog.Builder(this@MainActivity).setTitle("Actualizaciones")
+                AlertDialog.Builder(this@MainActivity, Ui.DIALOG).setTitle("Actualizaciones")
                     .setMessage(r.exceptionOrNull()?.let { "No he podido comprobarlo: ${it.message}" } ?: "Ya tienes la última versión (${Updater.installedName(this@MainActivity)}).")
                     .setPositiveButton("Vale", null).show()
             }
@@ -260,7 +262,7 @@ class MainActivity : Activity() {
     }
 
     private fun askUpdate(rel: Updater.Release) {
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this, Ui.DIALOG)
             .setTitle("Nueva versión ${rel.versionName}")
             .setMessage((rel.notes.ifBlank { "Hay una versión nueva de Sincro TV." }) + "\n\n¿La instalo ahora? Tus ajustes y canales se conservan.")
             .setPositiveButton("Actualizar") { _, _ -> startUpdate(rel) }
@@ -270,14 +272,14 @@ class MainActivity : Activity() {
 
     private fun startUpdate(rel: Updater.Release) {
         if (!Updater.canInstall(this)) {
-            AlertDialog.Builder(this)
+            AlertDialog.Builder(this, Ui.DIALOG)
                 .setTitle("Falta un permiso")
                 .setMessage("Para instalar la actualización, Sincro TV necesita permiso para instalar apps.\n\n" +
                     "Actívalo en la pantalla que se abre ahora (o en Ajustes → Mi Fire TV → Opciones para desarrolladores → " +
                     "Instalar apps desconocidas → Sincro TV) y vuelve a pulsar «Actualizar».")
                 .setPositiveButton("Abrir ajustes") { _, _ ->
                     if (!Updater.openInstallPermission(this)) {
-                        AlertDialog.Builder(this).setMessage("Este Fire TV no tiene esa pantalla. Actívalo a mano en Ajustes → Mi Fire TV → Opciones para desarrolladores → Instalar apps desconocidas.")
+                        AlertDialog.Builder(this, Ui.DIALOG).setMessage("Este Fire TV no tiene esa pantalla. Actívalo a mano en Ajustes → Mi Fire TV → Opciones para desarrolladores → Instalar apps desconocidas.")
                             .setPositiveButton("Vale", null).show()
                     }
                 }
@@ -285,7 +287,7 @@ class MainActivity : Activity() {
                 .show()
             return
         }
-        val dlg = AlertDialog.Builder(this).setTitle("Descargando ${rel.versionName}…").setMessage("0 %").setCancelable(false).show()
+        val dlg = AlertDialog.Builder(this, Ui.DIALOG).setTitle("Descargando ${rel.versionName}…").setMessage("0 %").setCancelable(false).show()
         scope.launch {
             val f = withContext(Dispatchers.IO) {
                 runCatching { Updater.download(this@MainActivity, rel) { pc -> runOnUiThread { dlg.setMessage("$pc %") } } }
@@ -293,7 +295,7 @@ class MainActivity : Activity() {
             dlg.dismiss()
             f.onSuccess { Updater.install(this@MainActivity, it) }
                 .onFailure {
-                    AlertDialog.Builder(this@MainActivity).setTitle("No se ha podido actualizar").setMessage(it.message)
+                    AlertDialog.Builder(this@MainActivity, Ui.DIALOG).setTitle("No se ha podido actualizar").setMessage(it.message)
                         .setPositiveButton("Vale", null).show()
                 }
         }
@@ -355,7 +357,7 @@ class MainActivity : Activity() {
             m.channels.size == 1 && !forceChoose -> openPicker(refs[0], m.channels[0], m.title)
             else -> {
                 val labels = m.channels.mapIndexed { i, s -> if (app.prefs.mapping(refs[i]) != null) "✓  $s" else s }.toTypedArray()
-                AlertDialog.Builder(this)
+                AlertDialog.Builder(this, Ui.DIALOG)
                     .setTitle(if (forceChoose) "¿Qué canal quieres emparejar?" else "¿Qué canal?")
                     .setItems(labels) { _, i ->
                         val mp = app.prefs.mapping(refs[i])
@@ -423,8 +425,7 @@ class MainActivity : Activity() {
             val m = items[position]
             h.time.text = "${dayLabel(m.date)} ${m.time}"
             val mine = m in this.mine
-            h.title.text = (if (mine) "★ " else "") + m.title
-            h.title.setTextColor(if (mine) Ui.STAR else Ui.FG)
+            h.title.text = if (mine) Ui.starred(m.title) else m.title
             val refs = m.refs
             val chans = m.channels.withIndex().joinToString(", ") { (i, s) -> if (app.prefs.mapping(refs[i]) != null) "✓ $s" else s }
             val shown = if (m.channels.size > 6) chans.split(", ").take(6).joinToString(", ") + " y ${m.channels.size - 6} más" else chans

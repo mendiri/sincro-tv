@@ -94,28 +94,32 @@ object ChannelsPage {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sincro TV · Canales</title>
 <style>
-:root{--bg:#0f1a14;--card:#17241d;--card2:#1f3127;--fg:#e8efe9;--muted:#93a39a;--line:#2a3a31;--accent:#3fbf74;--warn:#e5a53a;color-scheme:dark}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif}
-header{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 16px;border-bottom:1px solid var(--line);display:grid;gap:8px}
-h1{margin:0;font-size:20px}a{color:var(--accent)}
-input{width:100%;font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:10px;padding:8px 12px;cursor:pointer}
-button.pri{background:var(--accent);color:#06140c;border-color:var(--accent)}
+@font-face{font-family:Outfit;font-weight:300;src:url(/fonts/outfit_w300.ttf)}
+@font-face{font-family:Outfit;font-weight:400;src:url(/fonts/outfit_w400.ttf)}
+@font-face{font-family:Outfit;font-weight:500;src:url(/fonts/outfit_w500.ttf)}
+:root{--bg:#F3E9E4;--card:rgba(255,255,255,.62);--card2:rgba(255,255,255,.88);--fg:#2E2A35;--muted:#5E5966;--line:rgba(185,178,199,.5);--accent:#D9506B;--focus:#FFC09A;--warn:#B8641A;color-scheme:light}
+*{box-sizing:border-box}body{margin:0;background:var(--bg) fixed;background-image:radial-gradient(circle at 40% 62%,rgba(255,201,174,.7),transparent 45%),radial-gradient(circle at 66% 40%,rgba(205,184,242,.6),transparent 42%),radial-gradient(circle at 92% 78%,rgba(185,217,246,.5),transparent 45%),radial-gradient(circle at 8% 98%,rgba(248,185,201,.5),transparent 40%),radial-gradient(circle at 12% 8%,rgba(255,255,255,.4),transparent 45%);background-attachment:fixed;color:var(--fg);font:15px/1.4 Outfit,system-ui,-apple-system,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:rgba(243,233,228,.85);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:12px 16px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+h1{margin:0;font-size:26px;font-weight:300}a{color:var(--accent)}
+input{width:100%;font:inherit;color:var(--fg);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+button{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:12px;padding:8px 12px;cursor:pointer}
+input:focus,button:focus{outline:3px solid var(--focus);outline-offset:1px}
+button.pri{background:var(--focus);color:var(--fg);border-color:var(--focus)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{min-width:0}
-.chips button{padding:6px 10px;font-size:13px}.chips button.on{border-color:var(--accent);color:var(--accent)}
+.chips button{padding:6px 10px;font-size:13px}.chips button.on{border-color:var(--focus);background:var(--card2);box-shadow:0 0 0 2px var(--focus) inset}
 main{padding:8px 16px 40px;display:grid;gap:6px}
 h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 0 2px}
-.st{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
+.st{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 10px;cursor:pointer}
 .st img{width:44px;height:30px;object-fit:contain;background:#fff;border-radius:6px;flex:none}
 .st .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .badge{font-size:12px;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--line);color:var(--muted);flex:none}
-.badge.ok{background:var(--accent);color:#06140c}
-#panel{position:fixed;inset:0;background:var(--bg);z-index:10;overflow:auto;padding:12px 16px 40px}
+.badge.ok{background:var(--focus);color:var(--fg)}
+#panel{position:fixed;inset:0;background:var(--bg) fixed;background-image:radial-gradient(circle at 40% 62%,rgba(255,201,174,.7),transparent 45%),radial-gradient(circle at 66% 40%,rgba(205,184,242,.6),transparent 42%),radial-gradient(circle at 92% 78%,rgba(185,217,246,.5),transparent 45%),radial-gradient(circle at 8% 98%,rgba(248,185,201,.5),transparent 40%),radial-gradient(circle at 12% 8%,rgba(255,255,255,.4),transparent 45%);z-index:10;overflow:auto;padding:12px 16px 40px}
 #panel[hidden]{display:none}
-.item{display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.item{display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 10px}
 .item .t{flex:1;min-width:0}.item .t b{display:block;overflow-wrap:anywhere}.item .t small{color:var(--muted)}
 .item button{padding:6px 10px}
-.assigned .item{border-color:var(--accent)}
+.assigned .item{border-color:var(--focus);background:var(--card2)}
 .hint{color:var(--muted);font-size:13px;margin:4px 0}
 #msg{color:var(--warn);font-size:13px;min-height:1em}
 </style></head><body>

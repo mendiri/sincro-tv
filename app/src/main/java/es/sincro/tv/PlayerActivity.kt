@@ -86,7 +86,11 @@ class PlayerActivity : Activity() {
         }
         root.addView(playerView, FrameLayout.LayoutParams(-1, -1))
 
-        center = text(22f).apply { gravity = Gravity.CENTER; text = "Conectando…"; setPadding(dp(48), 0, dp(48), 0) }
+        // Sobre el vídeo (fondo negro): texto blanco con sombra
+        center = text(22f, color = 0xFFFFFFFF.toInt()).apply {
+            gravity = Gravity.CENTER; text = "Conectando…"; setPadding(dp(48), 0, dp(48), 0)
+            setShadowLayer(8f, 0f, 2f, 0xCC000000.toInt())
+        }
         root.addView(center, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
 
         overlay = text(18f).apply {

@@ -10,6 +10,7 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import es.sincro.tv.Ui.background
 import es.sincro.tv.Ui.dp
 import es.sincro.tv.Ui.lp
 import es.sincro.tv.Ui.text
@@ -69,6 +70,7 @@ class ChannelPickerActivity : Activity() {
             setPadding(dp(4), dp(8), dp(4), dp(24)); clipToPadding = false
         }
         root.addView(list, lp(h = 0, weight = 1f))
+        window.setBackgroundDrawable(background())
         setContentView(root)
 
         search.addTextChangedListener(object : TextWatcher {

@@ -9,6 +9,10 @@ class SetupServer(port: Int = PORT) : NanoHTTPD(port) {
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri.trimEnd('/')
         if (uri == "/canales") return html(ChannelsPage.HTML)
+        if (uri.startsWith("/fonts/") && uri.endsWith(".ttf") && !uri.contains("..")) return try {
+            val ins = App.instance.assets.open(uri.removePrefix("/"))
+            newChunkedResponse(Response.Status.OK, "font/ttf", ins).apply { addHeader("Cache-Control", "max-age=604800") }
+        } catch (e: Exception) { newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "No existe") }
         if (uri.startsWith("/api/")) return try { ChannelsPage.api(uri, session, readBody(session)) } catch (e: Exception) {
             newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", org.json.JSONObject().put("error", e.message ?: e.javaClass.simpleName).toString())
         }
@@ -117,13 +121,17 @@ class SetupServer(port: Int = PORT) : NanoHTTPD(port) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sincro TV · Ajustes</title>
 <style>
-:root{--bg:#0f1a14;--card:#17241d;--fg:#e8efe9;--muted:#93a39a;--line:#2a3a31;--accent:#3fbf74;color-scheme:dark}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,Roboto,sans-serif;padding:16px}
-main{max-width:560px;margin:0 auto;display:grid;gap:14px}h1{margin:4px 0;font-size:22px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:8px}
-label{font-size:13px;color:var(--muted)}input,textarea{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+@font-face{font-family:Outfit;font-weight:300;src:url(/fonts/outfit_w300.ttf)}
+@font-face{font-family:Outfit;font-weight:400;src:url(/fonts/outfit_w400.ttf)}
+@font-face{font-family:Outfit;font-weight:500;src:url(/fonts/outfit_w500.ttf)}
+:root{--bg:#F3E9E4;--card:rgba(255,255,255,.62);--card2:rgba(255,255,255,.88);--fg:#2E2A35;--muted:#5E5966;--line:rgba(185,178,199,.5);--accent:#D9506B;--focus:#FFC09A;--warn:#B8641A;color-scheme:light}
+*{box-sizing:border-box}body{margin:0;background:var(--bg) fixed;background-image:radial-gradient(circle at 40% 62%,rgba(255,201,174,.7),transparent 45%),radial-gradient(circle at 66% 40%,rgba(205,184,242,.6),transparent 42%),radial-gradient(circle at 92% 78%,rgba(185,217,246,.5),transparent 45%),radial-gradient(circle at 8% 98%,rgba(248,185,201,.5),transparent 40%),radial-gradient(circle at 12% 8%,rgba(255,255,255,.4),transparent 45%);background-attachment:fixed;color:var(--fg);font:15px/1.45 Outfit,system-ui,-apple-system,Roboto,sans-serif;padding:16px}
+main{max-width:560px;margin:0 auto;display:grid;gap:14px}h1{margin:4px 0;font-size:30px;font-weight:300}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:8px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+label{font-size:13px;color:var(--muted)}input,textarea{width:100%;font:inherit;color:var(--fg);background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 textarea{min-height:150px;font-family:ui-monospace,monospace;font-size:12px}
-button{font:inherit;font-weight:700;background:var(--accent);color:#06140c;border:0;border-radius:10px;padding:14px;width:100%}
+button{font:inherit;font-weight:500;background:var(--focus);color:var(--fg);border:0;border-radius:14px;padding:14px;width:100%}
+input:focus,textarea:focus,button:focus{outline:3px solid var(--focus);outline-offset:1px}
 .hint{font-size:13px;color:var(--muted);margin:0}#msg{font-weight:600;min-height:1.4em;white-space:pre-line}
 .ok{color:var(--accent)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 10px}
